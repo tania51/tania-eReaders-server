@@ -1,13 +1,24 @@
 const express = require('express')
 const app = express()
 const cors = require('cors')
+const jwt = require('jsonwebtoken');
+var cookieParser = require('cookie-parser')
 require('dotenv').config()
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const port = process.env.PORT || 5008
 
 //parser
-app.use(cors())
+app.use(cors({
+  origin: [
+    'http://localhost:5173',
+    'https://e-readers.web.app',
+    'https://e-readers.firebaseapp.com'
+  ],
+  credentials: true
+}));
 app.use(express.json())
+app.use(cookieParser())
+
 
 // user: e-readers
 // pass: nkRmhXRaHg75haRr
@@ -39,47 +50,69 @@ async function run() {
     const bookCategoryCollection = client.db('e-readers').collection('book-category');
     const borrowCollection = client.db('e-readers').collection('borrow');
 
+    // verify token using middleware
+    const bookHandeler = (req, res, next) => {
+      const token = req.cookies.token
+      // console.log(token);
+
+      if (!token) {
+        return res.status(401).send('1 unauthorized')
+      }
+
+      jwt.verify(token, process.env.USER_SECRET_TOKEN, function (err, decoded) {
+        if (err) {
+          return res.status(401).send('2 unauthorized')
+        }
+        const { email } = decoded;
+        req.user = decoded
+        // console.log(req.user);
+        next()
+      })
+
+    }
+
+
     // get all books data
-    app.get('/api/v1/all-books', async(req, res) => {
-        const cursor = booksCollection.find();
-        const result = await cursor.toArray();
-        res.send(result);
+    app.get('/api/v1/all-books', async (req, res) => {
+      const cursor = booksCollection.find();
+      const result = await cursor.toArray();
+      res.send(result);
     })
 
 
     // get all books category data
-    app.get('/api/v1/category-books/category_name', async(req, res) => {
-        const cursor = bookCategoryCollection.find();
-        const result = await cursor.toArray();
-        res.send(result);
+    app.get('/api/v1/category-books/category_name', async (req, res) => {
+      const cursor = bookCategoryCollection.find();
+      const result = await cursor.toArray();
+      res.send(result);
     })
 
 
     // get single book for update by quantity
-    app.get('/api/v1/category-books/category_name/:id', async(req, res) => {
+    app.get('/api/v1/category-books/category_name/:id', async (req, res) => {
       const id = req.params.id;
-      const query = {_id: new ObjectId(id)}
+      const query = { _id: new ObjectId(id) }
       const result = await bookCategoryCollection.findOne(query);
       res.send(result);
     })
 
 
     // update single book info using put method
-    app.put('/api/v1/category-books/category_name/:id', async(req, res) => {
+    app.put('/api/v1/category-books/category_name/:id', async (req, res) => {
       const id = req.params.id;
-      const filter = {_id: new ObjectId(id)}
+      const filter = { _id: new ObjectId(id) }
       const options = { upsert: true }
       const updateBook = req.body;
       const bookInfo = {
         $set: {
-          id: updateBook.id, 
-          author_name: updateBook.author_name, 
-          category_name: updateBook.category_name, 
-          image: updateBook.image, 
-          long_description: updateBook.long_description, 
-          name: updateBook.name, 
-          rating: updateBook.rating, 
-          short_description: updateBook.short_description,  
+          id: updateBook.id,
+          author_name: updateBook.author_name,
+          category_name: updateBook.category_name,
+          image: updateBook.image,
+          long_description: updateBook.long_description,
+          name: updateBook.name,
+          rating: updateBook.rating,
+          short_description: updateBook.short_description,
           quantity: updateBook.decreaseBook,
           borrowed_date: updateBook.recentArrDate,
           return_data: updateBook.returnDate,
@@ -95,48 +128,99 @@ async function run() {
     })
 
     // get single book for update by quantity
-    app.get('/api/v1/borrow-books', async(req, res) => {
+    app.get('/api/v1/borrow-books', async (req, res) => {
       const result = await borrowCollection.find().toArray();
       res.send(result);
     })
 
 
     // get single book for update by quantity
-    app.get('/api/v1/borrow-books/:id', async(req, res) => {
+    app.get('/api/v1/borrow-books/:id', async (req, res) => {
       const id = req.params.id;
       console.log(id);
-      const query = {_id: new ObjectId(id)}
+      const query = { _id: new ObjectId(id) }
       const result = await borrowCollection.findOne(query);
       res.send(result);
     })
 
 
-    app.post('/api/v1/borrow-books', async(req, res) => {
+    app.post('/api/v1/borrow-books', async (req, res) => {
       const query = req.body;
       const result = await borrowCollection.insertOne(query)
       res.send(result)
     })
 
+
+
+
     // get borrow books for display on borrowed book page
 
-    app.get('/api/v1/borrow-books', async(req, res) => {
-      const email = req.params.email;
-      console.log(email);
-      const query = {userEmail: email}
+    app.get('/api/v1/borrow-books', bookHandeler, async (req, res) => {
+      const userEmail = req.query.email;
+      const tokenEmail = req.user.email;
+
+      if (userEmail !== tokenEmail) {
+
+        return res.status(403).send('forbidden access')
+
+      }
+
+      let query = {}
+
+      if (userEmail) {
+        query.email = userEmail
+      }
       const cursor = borrowCollection.find(query);
-      console.log(cursor);
       const result = await cursor.toArray()
       res.send(result);
     })
 
 
+
+    // app.get('/api/v1/borrow-books', async(req, res) => {
+    //   const email = req.params.email;
+    //   console.log(email);
+    //   const query = {userEmail: email}
+    //   const cursor = borrowCollection.find(query);
+    //   console.log(cursor);
+    //   const result = await cursor.toArray()
+    //   res.send(result);
+    // })
+
+
     // delete return book
-    app.delete('/api/v1/borrow-books/:id', async(req, res) => {
+    app.delete('/api/v1/borrow-books/:id', async (req, res) => {
       const id = req.params.id;
       console.log(id);
-      const query = {_id: new ObjectId(id)}
+      const query = { _id: new ObjectId(id) }
       const result = await borrowCollection.deleteOne(query);
       res.send(result)
+    })
+
+
+    // user auth
+    app.post('/api/v1/auth/token-access', async (req, res) => {
+
+      const currentUser = req.body;
+      console.log(currentUser);
+      const token = jwt.sign(currentUser, process.env.USER_SECRET_TOKEN, { expiresIn: '1hr' })
+
+      res
+        .cookie('token', token, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',
+        })
+        .send({ success: true })
+    })
+
+
+    // clear cookie
+    app.post('/api/v1/logout', async (req, res) => {
+      const user = req.body;
+      res
+        .clearCookie('token', { maxAge: 0 })
+        .send({ success: true })
     })
 
     // get borrowed books using email
@@ -152,13 +236,13 @@ async function run() {
 
 
 
-    
 
-  //   app.get('/api/v1/borrow', async(req, res) => {
-  //     const cursor = borrowCollection.find();
-  //     const result = await cursor.toArray();
-  //     res.send(result);
-  // })
+
+    //   app.get('/api/v1/borrow', async(req, res) => {
+    //     const cursor = borrowCollection.find();
+    //     const result = await cursor.toArray();
+    //     res.send(result);
+    // })
 
 
     // get category single data using id
