@@ -215,29 +215,6 @@ async function run() {
 
 
 
-
-
-
-
-
-    //   app.get('/api/v1/borrow', async(req, res) => {
-    //     const cursor = borrowCollection.find();
-    //     const result = await cursor.toArray();
-    //     res.send(result);
-    // })
-
-
-    // get category single data using id
-    // app.get('/api/v1/all-books/books/:id', async(req, res) => {
-    //     const id = req.params;
-    //     console.log(id);
-    //     const query = {singleId: new Array(id)}
-    //     const result = await booksCollection.findOne(query);
-    //     res.send(result);
-    // })
-
-
-
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
     console.log("Pinged your deployment. You successfully connected to MongoDB!");
