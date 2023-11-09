@@ -176,18 +176,6 @@ async function run() {
     })
 
 
-
-    // app.get('/api/v1/borrow-books', async(req, res) => {
-    //   const email = req.params.email;
-    //   console.log(email);
-    //   const query = {userEmail: email}
-    //   const cursor = borrowCollection.find(query);
-    //   console.log(cursor);
-    //   const result = await cursor.toArray()
-    //   res.send(result);
-    // })
-
-
     // delete return book
     app.delete('/api/v1/borrow-books/:id', async (req, res) => {
       const id = req.params.id;
